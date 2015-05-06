@@ -33,14 +33,15 @@
 
 #pragma mark - Instance methods
 
-- (id)initWithApplication:(NSString *)applicationKey andAccessRightsLevel:(PNAccessRightsLevel)level {
+- (id)initWithApplication:(NSString *)applicationKey
+     andAccessRightsLevel:(PNAccessRightsLevel)__unused level {
 
     // Check whether initialization was successful or not
     if ((self = [super init])) {
 
         self.applicationKey = applicationKey;
-        self.channelsAccessRightsInformation = [NSMutableDictionary dictionary];
-        self.clientsAccessRightsInformation = [NSMutableDictionary dictionary];
+        self.channelsAccessRightsInformation = [NSMutableDictionary new];
+        self.clientsAccessRightsInformation = [NSMutableDictionary new];
     }
 
 
@@ -87,8 +88,8 @@
     
     NSMutableArray *groupObjectAccessRights = [[self accessRightsInformationForAllChannelGroupObjects] mutableCopy];
     [[groupObjectAccessRights copy] enumerateObjectsUsingBlock:^(PNAccessRightsInformation *objectAccessRightsInformation,
-                                                                 NSUInteger objectAccessRightsInformationIdx,
-                                                                 BOOL *objectAccessRightsInformationEnumeratorStop) {
+                                                                 __unused NSUInteger objectAccessRightsInformationIdx,
+                                                                 __unused BOOL *objectAccessRightsInformationEnumeratorStop) {
         
         if (![objectAccessRightsInformation.object isMemberOfClass:channelGroupObjectClass]) {
             
@@ -131,8 +132,8 @@
 
 - (NSArray *)accessRightsForClientsOn:(id<PNChannelProtocol>)object {
     
-    NSString *keyPortion = [NSString stringWithFormat:@"%@.", object.name];
-    NSSet *userInformationKeys = [self.clientsAccessRightsInformation keysOfEntriesPassingTest:^BOOL(id key, id obj, BOOL *stop) {
+    NSString *keyPortion = [[NSString alloc] initWithFormat:@"%@.", object.name];
+    NSSet *userInformationKeys = [self.clientsAccessRightsInformation keysOfEntriesPassingTest:^BOOL(id key, __unused id obj, __unused BOOL *stop) {
         
         return [key rangeOfString:keyPortion].location != NSNotFound;
     }];
@@ -158,7 +159,7 @@
 - (PNAccessRightsInformation *)accessRightsInformationClientAuthorizationKey:(NSString *)clientAuthorizationKey
                                                                    onChannel:(PNChannel *)channel {
 
-    NSString *userInformationStoreKey = [NSString stringWithFormat:@"%@.%@", channel.name, clientAuthorizationKey];
+    NSString *userInformationStoreKey = [[NSString alloc] initWithFormat:@"%@.%@", channel.name, clientAuthorizationKey];
     PNAccessRightsInformation *clientInformation = [self.clientsAccessRightsInformation valueForKey:userInformationStoreKey];
 
     // Check whether there is no access rights information for specified client or not.
@@ -192,7 +193,7 @@
 
 - (void)storeClientAccessRightsInformation:(PNAccessRightsInformation *)information forChannel:(PNChannel *)channel {
 
-    NSString *userInformationStoreKey = [NSString stringWithFormat:@"%@.%@", channel.name, information.authorizationKey];
+    NSString *userInformationStoreKey = [[NSString alloc] initWithFormat:@"%@.%@", channel.name, information.authorizationKey];
     [self populateAccessRightsFrom:[self accessRightsInformationFor:channel] to:information];
 
     if (![self.clientsAccessRightsInformation objectForKey:userInformationStoreKey]) {
@@ -203,8 +204,9 @@
 
 - (void)correlateAccessRightsWithOptions:(PNAccessRightOptions *)options {
 
-    [options.channels enumerateObjectsUsingBlock:^(id<PNChannelProtocol> object, NSUInteger objectIdx,
-                                                   BOOL *objectEnumeratorStop) {
+    [options.channels enumerateObjectsUsingBlock:^(id<PNChannelProtocol> object,
+                                                   __unused NSUInteger objectIdx,
+                                                   __unused BOOL *objectEnumeratorStop) {
 
         if (options.level != PNUserAccessRightsLevel) {
 
@@ -214,8 +216,8 @@
         }
 
         [options.clientsAuthorizationKeys enumerateObjectsUsingBlock:^(NSString *clientAuthorizationKey,
-                                                                       NSUInteger clientAuthorizationKeyIdx,
-                                                                       BOOL *clientAuthorizationKeyEnumeratorStop) {
+                                                                       __unused NSUInteger clientAuthorizationKeyIdx,
+                                                                       __unused BOOL *clientAuthorizationKeyEnumeratorStop) {
 
                     [self storeClientAccessRightsInformation:[PNAccessRightsInformation accessRightsInformationForLevel:PNUserAccessRightsLevel
                                                                        rights:PNNoAccessRights applicationKey:self.applicationKey
@@ -241,6 +243,11 @@
         if ([sourceAccessRightsInformation hasAllRights]) {
 
             rights = (PNReadAccessRight | PNWriteAccessRight);
+            if ([targetAccessRightsInformation hasManagementRight]) {
+                
+                [PNBitwiseHelper removeFrom:&rights bit:PNWriteAccessRight];
+                [PNBitwiseHelper addTo:&rights bit:PNManagementRight];
+            }
         }
 
         
@@ -251,7 +258,10 @@
 
         if ([sourceAccessRightsInformation hasWriteRight] && ![PNBitwiseHelper is:rights containsBit:PNWriteAccessRight]) {
             
-            [PNBitwiseHelper addTo:&rights bit:PNWriteAccessRight];
+            if (![targetAccessRightsInformation hasManagementRight]) {
+                
+                [PNBitwiseHelper addTo:&rights bit:PNWriteAccessRight];
+            }
         }
 
         targetAccessRightsInformation.rights = (PNAccessRights)rights;
@@ -261,7 +271,7 @@
 - (NSString *)description {
 
     NSString *indent = @"";
-    NSMutableString *descriptionString = [NSMutableString stringWithString:@"\n"];
+    NSMutableString *descriptionString = [[NSMutableString alloc] initWithString:@"\n"];
 
     if (self.applicationAccessRightsInformation != nil) {
 
@@ -270,12 +280,12 @@
 
     if ([self.channelsAccessRightsInformation count]) {
 
-        NSString *oldIndent = [NSString stringWithString:indent];
+        NSString *oldIndent = [[NSString alloc] initWithString:indent];
         [descriptionString appendFormat:@"\n%@Channels:\n", indent];
 
         indent = [indent stringByAppendingString:@"    "];
         [descriptionString appendString:indent];
-        NSString *channelsJoinString = [NSString stringWithFormat:@"\n%@", indent];
+        NSString *channelsJoinString = [[NSString alloc] initWithFormat:@"\n%@", indent];
         [descriptionString appendString:[[self.channelsAccessRightsInformation allValues]
                componentsJoinedByString:channelsJoinString]];
 
@@ -288,7 +298,7 @@
 
         indent = [indent stringByAppendingString:@"    "];
         [descriptionString appendString:indent];
-        NSString *clientsJoinString = [NSString stringWithFormat:@"\n%@", indent];
+        NSString *clientsJoinString = [[NSString alloc] initWithFormat:@"\n%@", indent];
         [descriptionString appendString:[[self.clientsAccessRightsInformation allValues]
                componentsJoinedByString:clientsJoinString]];
     }
@@ -299,7 +309,7 @@
 
 - (NSString *)logDescription {
     
-    NSMutableString *descriptionString = [NSMutableString stringWithString:@"<"];
+    NSMutableString *descriptionString = [[NSMutableString alloc] initWithString:@"<"];
     if (self.applicationAccessRightsInformation != nil) {
         
         #pragma clang diagnostic push

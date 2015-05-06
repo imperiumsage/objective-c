@@ -20,7 +20,7 @@
     
     __block NSString *logDescription = @"<[";
     __block NSUInteger entryIdx = 0;
-    [self enumerateObjectsUsingBlock:^(id entry, BOOL *entryEnumeratorStop) {
+    [self enumerateObjectsUsingBlock:^(id entry, __unused BOOL *entryEnumeratorStop) {
         
         // Check whether parameter can be transformed for log or not
         if ([entry respondsToSelector:@selector(logDescription)]) {
@@ -28,7 +28,8 @@
             entry = [entry performSelector:@selector(logDescription)];
             entry = (entry ? entry : @"");
         }
-        logDescription = [logDescription stringByAppendingFormat:@"%@%@", entry, (entryIdx + 1 != [self count] ? @"|" : @"]>")];
+        logDescription = [logDescription stringByAppendingFormat:@"%@%@", entry,
+                          (entryIdx + 1 != [self count] ? @"|" : @"]>")];
         
         entryIdx++;
     }];

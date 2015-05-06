@@ -49,7 +49,7 @@
 /**
  Stores data which has been assigned to the client.
  */
-@property (nonatomic, readonly, strong) NSDictionary *data
+@property (nonatomic, readonly, copy) NSDictionary *data
           DEPRECATED_MSG_ATTRIBUTE(" Use '-stateForChannel:' to get client's state for concrete channel");
 
 
@@ -62,14 +62,6 @@
  */
 - (BOOL)isAnonymous;
 
-/**
- @brief Retrieve client's data inside concrete channel.
- 
- @discussion \b PNClient can receive it's state for multiple channels at once (from channel group) and this method allow
- to get state for concrete channel (list of channels with data stored in \c channels property).
- 
- @since 3.7.0
- */
 /**
  @brief Retrieve client's data inside concrete channel.
  

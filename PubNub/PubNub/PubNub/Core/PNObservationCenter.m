@@ -150,12 +150,7 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
 @property (nonatomic, pn_desired_weak) id defaultObserver;
 
 /**
- @brief      Stores reference on list of object returned by NSNotificationCenter during subscription
-             on notifications.
- @discussion Will be used to unsubscribe from notifications at the end of \b PNObservationCenter
-             life-cycle.
-
- @since 3.7.9
+ @breif Stores list of notifications on which observer subscribed.
  */
 @property (nonatomic, strong) NSMutableArray *notifications;
 
@@ -266,36 +261,20 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
     // Check whether initialization was successful or not
     if((self = [super init])) {
         
-        self.observers = [NSMutableDictionary dictionary];
-        self.oneTimeObservers = [NSMutableDictionary dictionary];
-        self.notifications = [NSMutableArray array];
+        self.observers = [NSMutableDictionary new];
+        self.oneTimeObservers = [NSMutableDictionary new];
+        self.notifications = [NSMutableArray new];
         self.defaultObserver = (defaultObserver ? defaultObserver : [PubNub sharedInstance]);
         [self pn_setupPrivateSerialQueueWithIdentifier:@"observer" andPriority:DISPATCH_QUEUE_PRIORITY_DEFAULT];
 
-        __block __pn_desired_weak __typeof__(self) weakSelf = self;
         NSNotificationCenter *notificationCenter = [NSNotificationCenter defaultCenter];
-        void(^handleBlock)(SEL, NSNotification *) = ^(SEL handlerSelector,
-                                                      NSNotification *notification){
-
-            __strong __typeof__(self) strongSelf = weakSelf;
-            [strongSelf pn_dispatchBlock:^{
-                #pragma clang diagnostic push
-                #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
-                [strongSelf performSelector:handlerSelector withObject:notification];
-                #pragma clang diagnostic pop
-            }];
-        };
         void(^addObserver)(SEL, NSString *) = ^(SEL handlerSelector, NSString *notificationName) {
 
             NSString *privateNotification = [NSNotification pn_privateNotificationNameFrom:notificationName];
-            id observer = [notificationCenter addObserverForName:privateNotification
-                                                          object:self.defaultObserver queue:nil
-                                                      usingBlock:^(NSNotification *notification) {
+            [notificationCenter addObserver:self selector:handlerSelector name:privateNotification
+                                     object:self.defaultObserver];
 
-                handleBlock(handlerSelector, (NSNotification *)notification);
-            }];
-
-            [self.notifications addObject:observer];
+            [self.notifications addObject:privateNotification];
         };
 
         addObserver(@selector(handleClientConnectionStateChange:), kPNClientDidConnectToOriginNotification);
@@ -425,14 +404,14 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
 
         NSArray *allEvents = [self.oneTimeObservers allValues];
         [allEvents enumerateObjectsUsingBlock:^(NSMutableDictionary *eventSubscribers,
-                                                NSUInteger eventSubscribersIdx,
+                                                __unused NSUInteger eventSubscribersIdx,
                                                 BOOL *eventSubscribersEnumeratorStop) {
 
             if ([eventSubscribers objectForKey:oldCallbackToken]) {
 
                 id callback = [eventSubscribers objectForKey:oldCallbackToken];
                 [eventSubscribers removeObjectForKey:oldCallbackToken];
-                [eventSubscribers setValue:callback forKey:callbackToken];
+                [eventSubscribers setValue:callback forKey:[callbackToken copy]];
                 *eventSubscribersEnumeratorStop = YES;
             }
         }];
@@ -466,70 +445,75 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
 - (void)addObserver:(id)observer forEvent:(NSString *)eventName oneTimeEvent:(BOOL)isOneTimeEvent
           withBlock:(id)block andToken:(NSString *)callbackToken {
 
-    [self pn_dispatchBlock:^{
-
-        id blockCopy = [block copy];
-        NSMutableDictionary *observerData = [@{PNObservationObserverData.observer : observer,
-                                               PNObservationObserverData.observerCallbackBlock : blockCopy} mutableCopy];
-
-        if (isOneTimeEvent && callbackToken) {
-
-            [self oneTimeObserversForEvent:eventName withCallbackToken:callbackToken];
-
-            NSMutableDictionary *eventObservers = [self.oneTimeObservers valueForKey:eventName];
-            [eventObservers setValue:observerData forKey:callbackToken];
-        }
-        else {
-
-            NSMutableArray *observers = nil;
-            if (isOneTimeEvent) {
-
-                observers = [self oneTimeObserversForEvent:eventName withCallbackToken:nil];
+    if (observer) {
+        
+        [self pn_dispatchBlock:^{
+            
+            id blockCopy = [block copy];
+            NSMutableDictionary *observerData = [@{PNObservationObserverData.observer : observer,
+                                                   PNObservationObserverData.observerCallbackBlock : blockCopy} mutableCopy];
+            
+            if (isOneTimeEvent && callbackToken) {
+                
+                [self oneTimeObserversForEvent:eventName withCallbackToken:callbackToken];
+                
+                NSMutableDictionary *eventObservers = [self.oneTimeObservers valueForKey:eventName];
+                [eventObservers setValue:observerData forKey:[callbackToken copy]];
             }
             else {
-
-                observers = [self persistentObserversForEvent:eventName];
+                
+                NSMutableArray *observers = nil;
+                if (isOneTimeEvent) {
+                    
+                    observers = [self oneTimeObserversForEvent:eventName withCallbackToken:nil];
+                }
+                else {
+                    
+                    observers = [self persistentObserversForEvent:eventName];
+                }
+                
+                [observers addObject:observerData];
             }
-
-            [observers addObject:observerData];
-        }
-    }];
+        }];
+    }
 }
 
 - (void)removeObserver:(id)observer forEvent:(NSString *)eventName oneTimeEvent:(BOOL)isOneTimeEvent
      withCallbackToken:(NSString *)callbackToken {
 
-    [self pn_dispatchBlock:^{
+    if (observer) {
+        
+        [self pn_dispatchBlock:^{
 
-        if (isOneTimeEvent && callbackToken) {
+            if (isOneTimeEvent && callbackToken) {
 
-            [[self.oneTimeObservers valueForKey:eventName] removeObjectForKey:callbackToken];
-        }
-        else {
-
-            // Retrieve list of observing requests with specified observer
-            NSString *filterFormat = [NSString stringWithFormat:@"%@ = %%@", PNObservationObserverData.observer];
-            NSPredicate *filterPredicate = [NSPredicate predicateWithFormat:filterFormat, observer];
-
-            NSMutableArray *observers = nil;
-            if (isOneTimeEvent) {
-
-                observers = [self oneTimeObserversForEvent:eventName withCallbackToken:nil];
+                [[self.oneTimeObservers valueForKey:eventName] removeObjectForKey:callbackToken];
             }
             else {
 
-                observers = [self persistentObserversForEvent:eventName];
+                // Retrieve list of observing requests with specified observer
+                NSString *filterFormat = [[NSString alloc] initWithFormat:@"%@ = %%@", PNObservationObserverData.observer];
+                NSPredicate *filterPredicate = [NSPredicate predicateWithFormat:filterFormat, observer];
+
+                NSMutableArray *observers = nil;
+                if (isOneTimeEvent) {
+
+                    observers = [self oneTimeObserversForEvent:eventName withCallbackToken:nil];
+                }
+                else {
+
+                    observers = [self persistentObserversForEvent:eventName];
+                }
+                
+                NSArray *filteredObservers = [observers filteredArrayUsingPredicate:filterPredicate];
+                if ([filteredObservers count] > 0) {
+
+                    // Removing first occurrence of observer request in list
+                    [observers removeObject:[filteredObservers objectAtIndex:0]];
+                }
             }
-            NSArray *filteredObservers = [observers filteredArrayUsingPredicate:filterPredicate];
-            if ([filteredObservers count] > 0) {
-
-                // Removing first occurrence of observer request in list
-                [observers removeObject:[filteredObservers objectAtIndex:0]];
-            }
-        }
-
-
-    }];
+        }];
+    }
 }
 
 
@@ -1176,8 +1160,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientConnectionStateChangeBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1219,8 +1203,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientStateRetrieveHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1262,8 +1246,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientStateUpdateHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1318,8 +1302,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientChannelGroupsRequestHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1361,8 +1345,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientChannelGroupNamespacesRequestHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1409,8 +1393,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientChannelGroupNamespaceRemoveHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1457,8 +1441,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientChannelGroupRemoveHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1505,8 +1489,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientChannelsForGroupRequestHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1557,8 +1541,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Receive reference on handling block
                 id block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1618,7 +1602,7 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
           withCallbackToken:[notification pn_callbackToken]
                    andBlock:^(NSMutableArray *allObservers) {
 
-        NSMutableArray *observers = [NSMutableArray arrayWithArray:allObservers];
+        NSMutableArray *observers = [[NSMutableArray alloc] initWithArray:allObservers copyItems:NO];
         if ([notificationName isEqualToString:kPNClientSubscriptionDidCompleteOnClientIdentifierUpdateNotification] ||
             [notificationName isEqualToString:kPNClientSubscriptionDidFailOnClientIdentifierUpdateNotification]) {
 
@@ -1648,7 +1632,7 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
             else if ([(NSMutableArray *)oneTimeEventObservers count]) {
 
                 [(NSMutableArray *)oneTimeEventObservers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                                                      NSUInteger observerDataIdx,
+                                                                                      __unused NSUInteger observerDataIdx,
                                                                                       BOOL *observerDataEnumeratorStop) {
 
                     *observerDataEnumeratorStop = oneTimeProcessingBlock(observerData);
@@ -1665,8 +1649,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientChannelSubscriptionHandlerBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1703,7 +1687,7 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
           withCallbackToken:[notification pn_callbackToken]
                    andBlock:^(NSMutableArray *allObservers) {
 
-        NSMutableArray *observers = [NSMutableArray arrayWithArray:allObservers];
+        NSMutableArray *observers = [[NSMutableArray alloc] initWithArray:allObservers copyItems:NO];
         if ([notificationName isEqualToString:kPNClientUnsubscriptionDidCompleteOnClientIdentifierUpdateNotification] ||
             [notificationName isEqualToString:kPNClientUnsubscriptionDidFailOnClientIdentifierUpdateNotification]) {
 
@@ -1733,7 +1717,7 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
             else if ([(NSMutableArray *)oneTimeEventObservers count]) {
 
                 [(NSMutableArray *)oneTimeEventObservers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                                                      NSUInteger observerDataIdx,
+                                                                                      __unused NSUInteger observerDataIdx,
                                                                                       BOOL *observerDataEnumeratorStop) {
 
                     *observerDataEnumeratorStop = oneTimeProcessingBlock(observerData);
@@ -1749,8 +1733,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientChannelUnsubscriptionHandlerBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1792,8 +1776,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientPresenceEnableHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1835,8 +1819,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientPresenceDisableHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1887,8 +1871,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Receive reference on handling block
                 id block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1931,8 +1915,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Receive reference on handling block
                 PNClientPushNotificationsRemoveHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -1974,8 +1958,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Receive reference on handling block
                 PNClientPushNotificationsEnabledChannelsHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2027,8 +2011,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientMessageProcessingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2054,8 +2038,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientMessageHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2081,8 +2065,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientPresenceEventHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2131,8 +2115,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientHistoryLoadHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2173,8 +2157,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientChannelAccessRightsChangeBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2215,8 +2199,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientChannelAccessRightsAuditBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2261,8 +2245,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientParticipantsHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2307,8 +2291,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientParticipantChannelsHandlingBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2349,8 +2333,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
         dispatch_async(dispatch_get_main_queue(), ^{
 
             [observers enumerateObjectsUsingBlock:^(NSMutableDictionary *observerData,
-                                                    NSUInteger observerDataIdx,
-                                                    BOOL *observerDataEnumeratorStop) {
+                                                    __unused NSUInteger observerDataIdx,
+                                                    __unused BOOL *observerDataEnumeratorStop) {
 
                 // Call handling blocks
                 PNClientTimeTokenReceivingCompleteBlock block = [observerData valueForKey:PNObservationObserverData.observerCallbackBlock];
@@ -2373,7 +2357,7 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
 
     if ([self.observers valueForKey:eventName] == nil) {
 
-        [self.observers setValue:[NSMutableArray array] forKey:eventName];
+        [self.observers setValue:[NSMutableArray new] forKey:eventName];
     }
     
     
@@ -2384,8 +2368,8 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
     
     if ([self.oneTimeObservers valueForKey:eventName] == nil) {
 
-        NSMutableDictionary *observersForEvent = [NSMutableDictionary dictionary];
-        [observersForEvent setValue:[NSMutableArray array] forKey:kPNObserverGeneralCallbacks];
+        NSMutableDictionary *observersForEvent = [NSMutableDictionary new];
+        [observersForEvent setValue:[NSMutableArray new] forKey:kPNObserverGeneralCallbacks];
         [self.oneTimeObservers setValue:observersForEvent forKey:eventName];
     }
 
@@ -2407,7 +2391,7 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
 
         // Composing full observers list depending on whether at least
         // one object exist in retrieved arrays
-        NSMutableArray *allObservers = [NSMutableArray array];
+        NSMutableArray *allObservers = [NSMutableArray new];
         if ([oneTimeEventObservers isKindOfClass:[NSMutableDictionary class]]) {
 
             [allObservers addObject:oneTimeEventObservers];
@@ -2436,13 +2420,15 @@ static struct PNObservationObserverDataStruct PNObservationObserverData = {
 
     // Unsubscribe from all notifications
     NSNotificationCenter *notificationCenter = [NSNotificationCenter defaultCenter];
-    [_notifications enumerateObjectsUsingBlock:^(id notification, NSUInteger notificationIdx,
-                                                 BOOL *notificationsEnumeratorStop) {
+    [_notifications enumerateObjectsUsingBlock:^(NSString *notificationName,
+                                                 __unused NSUInteger notificationNameIdx,
+                                                 __unused BOOL *notificationNamesEnumeratorStop) {
 
-        [notificationCenter removeObserver:notification];
+        if (_defaultObserver) {
+            
+            [notificationCenter removeObserver:self name:notificationName object:_defaultObserver];
+        }
     }];
-    _notifications = nil;
-    
     _defaultObserver = nil;
 
     [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{

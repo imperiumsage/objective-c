@@ -27,7 +27,7 @@
 /**
  Initialize wrapper around provided object.
  
- @param object  \a GCD object which should be stored inside wrapper.
+ @param queue   \a GCD queue which should be stored inside wrapper.
  @param pointer Reference on value which store pointer used during set specific operation on queue.
  
  @return Reference on wrapper which will store \a GCD object for us.
@@ -85,13 +85,15 @@
 
 + (dispatch_queue_t)serialQueueWithIdentifier:(NSString *)identifier {
 
-    NSString *queueIdentifier = [NSString stringWithFormat:@"com.pubnub.%@.%@", identifier, [PNHelper UUID]];
+    NSString *queueIdentifier = [[NSString alloc] initWithFormat:@"com.pubnub.%@.%@", identifier, [PNHelper UUID]];
     const char *cQueueIdentifier = [queueIdentifier UTF8String];
 
 
     return dispatch_queue_create(cQueueIdentifier, DISPATCH_QUEUE_SERIAL);
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
 + (void)retain:(dispatch_object_t)dispatchObject {
     
     pn_dispatch_object_retain(dispatchObject);
@@ -101,6 +103,7 @@
     
     pn_dispatch_object_release(dispatchObject);
 }
+#pragma clang diagnostic pop
 
 #pragma mark -
 
@@ -239,13 +242,15 @@
     dispatch_once(&dispatchOnceToken, ^{
         
         // Retrieve application information Property List
-        NSDictionary *applicationInformation = [[NSBundle mainBundle] infoDictionary];
+        NSDictionary *applicationInformation = [[NSBundle bundleForClass:self] infoDictionary];
         
         if ([applicationInformation objectForKey:@"UIBackgroundModes"]) {
             
             NSArray *backgroundModes = [applicationInformation valueForKey:@"UIBackgroundModes"];
-            NSArray *suitableModes = @[@"audio", @"location", @"voip", @"bluetooth-central", @"bluetooth-peripheral"];
-            [backgroundModes enumerateObjectsUsingBlock:^(id mode, NSUInteger modeIdx, BOOL *modeEnumeratorStop) {
+            NSArray *suitableModes = [@[@"audio", @"location", @"voip", @"bluetooth-central",
+                                        @"bluetooth-peripheral"] copy];
+            [backgroundModes enumerateObjectsUsingBlock:^(id mode, __unused NSUInteger modeIdx,
+                                                          BOOL *modeEnumeratorStop) {
                 
                 canRunInBackground = [suitableModes containsObject:mode];
                 *modeEnumeratorStop = canRunInBackground;
@@ -295,19 +300,6 @@
 
 #pragma mark - Class methods
 
-+ (void)releaseCFObject:(CF_RELEASES_ARGUMENT void *)CFObject {
-    
-    if (CFObject != NULL) {
-        
-        if (*((CFTypeRef*)CFObject) != NULL) {
-            
-            CFRelease(*((CFTypeRef*)CFObject));
-        }
-        
-        *((CFTypeRef*)CFObject) = NULL;
-    }
-}
-
 + (id)nilifyIfNotSet:(id)object {
     
     return (object ? object : [NSNull null]);
@@ -330,18 +322,22 @@
     CFStringRef cfUUID = CFUUIDCreateString(kCFAllocatorDefault, uuid);
     
     // release the UUID
-    CFRelease(uuid);
+    if (uuid) {
+        
+        CFRelease(uuid);
+    }
     
     
-    return [(NSString *)CFBridgingRelease(cfUUID) lowercaseString];
+    return [[NSString alloc] initWithString:[(NSString *)CFBridgingRelease(cfUUID) lowercaseString]];
 }
 
 + (NSString *)shortenedUUIDFromUUID:(NSString *)originalUUID {
     
-    NSMutableString *shortenedUUID = [NSMutableString string];
+    NSMutableString *shortenedUUID = [NSMutableString new];
     
     NSArray *components = [originalUUID componentsSeparatedByString:@"-"];
-    [components enumerateObjectsUsingBlock:^(NSString *group, NSUInteger groupIdx, BOOL *groupEnumeratorStop) {
+    [components enumerateObjectsUsingBlock:^(NSString *group, __unused NSUInteger groupIdx,
+                                             __unused BOOL *groupEnumeratorStop) {
         
         NSRange randomValueRange = NSMakeRange([self randomIntegerInRange:NSMakeRange(0, [group length])], 1);
         [shortenedUUID appendString:[group substringWithRange:randomValueRange]];

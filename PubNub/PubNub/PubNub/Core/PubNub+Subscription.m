@@ -151,7 +151,7 @@
     // Checking whether client state for channel has been provided in correct format or not.
     if (channel && clientState && ![[clientState valueForKey:channel.name] isKindOfClass:[NSDictionary class]]) {
         
-        clientState = @{channel.name: clientState};
+        clientState = [@{channel.name: clientState} copy];
     }
     
     [self subscribeOnChannels:(channel ? @[channel] : @[]) withClientState:clientState
@@ -290,7 +290,7 @@ withCompletionHandlingBlock:(PNClientChannelUnsubscriptionHandlerBlock)handlerBl
     // Checking whether client state for channel has been provided in correct format or not.
     if (channel && clientState && ![[clientState valueForKey:channel.name] isKindOfClass:[NSDictionary class]]) {
         
-        clientState = @{channel.name: clientState};
+        clientState = [@{channel.name: clientState} copy];
     }
     
     [self subscribeOnChannels:(channel ? @[channel] : nil) withClientState:clientState
@@ -345,7 +345,12 @@ andCompletionHandlingBlock:handlerBlock];
 - (void)         subscribeOn:(NSArray *)channelObjects withCatchUp:(BOOL)shouldCatchUp
                  clientState:(NSDictionary *)clientState
   andCompletionHandlingBlock:(PNClientChannelSubscriptionHandlerBlock)handlerBlock {
-    
+
+    // Create additional references on objects passed from outside to ensure what objects will
+    // survive till asynchronous operation will complete.
+    channelObjects = [[NSArray alloc] initWithArray:channelObjects copyItems:NO];
+    clientState = [clientState copy];
+
     [self pn_dispatchBlock:^{
         
         [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
@@ -463,7 +468,11 @@ andCompletionHandlingBlock:handlerBlock];
 
 - (void)    unsubscribeFrom:(NSArray *)channelObjects
 withCompletionHandlingBlock:(PNClientChannelUnsubscriptionHandlerBlock)handlerBlock {
-    
+
+    // Create additional references on objects passed from outside to ensure what objects will
+    // survive till asynchronous operation will complete.
+    channelObjects = [[NSArray alloc] initWithArray:channelObjects copyItems:NO];
+
     [self pn_dispatchBlock:^{
         
         [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
@@ -697,8 +706,8 @@ withCompletionHandlingBlock:(PNClientChannelUnsubscriptionHandlerBlock)handlerBl
 
 #pragma mark - Message channel delegate methods
 
-- (void) messagingChannel:(PNMessagingChannel *)messagingChannel
-  willSubscribeOnChannels:(NSArray *)channels sequenced:(BOOL)isSequenced {
+- (void) messagingChannel:(PNMessagingChannel *)__unused messagingChannel
+  willSubscribeOnChannels:(NSArray *)channels sequenced:(BOOL)__unused isSequenced {
     
     [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
         
@@ -799,7 +808,7 @@ withCompletionHandlingBlock:(PNClientChannelUnsubscriptionHandlerBlock)handlerBl
 }
 
 - (void)   messagingChannel:(PNMessagingChannel *)messagingChannel
-  willRestoreSubscriptionOn:(NSArray *)channelObjects sequenced:(BOOL)isSequenced {
+  willRestoreSubscriptionOn:(NSArray *)channelObjects sequenced:(BOOL)__unused isSequenced {
     
     [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
         
@@ -896,7 +905,8 @@ withCompletionHandlingBlock:(PNClientChannelUnsubscriptionHandlerBlock)handlerBl
     }];
 }
 
-- (void)messagingChannel:(PNMessagingChannel *)channel didFailSubscribeOn:(NSArray *)channelObjects
+- (void)messagingChannel:(PNMessagingChannel *)__unused channel
+      didFailSubscribeOn:(NSArray *)channelObjects
                withError:(PNError *)error sequenced:(BOOL)isSequenced {
     
     error.associatedObject = channelObjects;
@@ -905,8 +915,8 @@ withCompletionHandlingBlock:(PNClientChannelUnsubscriptionHandlerBlock)handlerBl
     [self launchHeartbeatTimer];
 }
 
-- (void)messagingChannel:(PNMessagingChannel *)messagingChannel
-     willUnsubscribeFrom:(NSArray *)channelObjects sequenced:(BOOL)isSequenced {
+- (void)messagingChannel:(PNMessagingChannel *)__unused messagingChannel
+     willUnsubscribeFrom:(NSArray *)channelObjects sequenced:(BOOL)__unused isSequenced {
     
     [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
         
@@ -1005,7 +1015,7 @@ withCompletionHandlingBlock:(PNClientChannelUnsubscriptionHandlerBlock)handlerBl
     }];
 }
 
-- (void)messagingChannel:(PNMessagingChannel *)channel
+- (void)messagingChannel:(PNMessagingChannel *)__unused channel
   didFailUnsubscribeFrom:(NSArray *)channelObjects withError:(PNError *)error
                sequenced:(BOOL)isSequenced {
     

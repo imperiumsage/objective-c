@@ -9,6 +9,7 @@
 #import "PNClientStateResponseParser+Protected.h"
 #import "PNResponse+Protected.h"
 #import "PNClient+Protected.h"
+#import "PNChannel+Protected.h"
 #import "PNChannel.h"
 
 
@@ -26,7 +27,7 @@
 
 #pragma mark - Class methods
 
-+ (id)parserForResponse:(PNResponse *)response {
++ (id)parserForResponse:(PNResponse *)__unused response {
 
     NSAssert1(0, @"%s SHOULD BE CALLED ONLY FROM PARENT CLASS", __PRETTY_FUNCTION__);
 
@@ -61,8 +62,9 @@
         if ([responseData objectForKey:kPNResponseChannelsKey]) {
             
             responseData = [responseData valueForKey:kPNResponseChannelsKey];
-            [responseData enumerateKeysAndObjectsUsingBlock:^(NSString *channelName, NSDictionary *clienOnChannelData,
-                                                              BOOL *channelEnumeratorStop) {
+            [responseData enumerateKeysAndObjectsUsingBlock:^(NSString *channelName,
+                                                              NSDictionary *clienOnChannelData,
+                                                              __unused BOOL *channelEnumeratorStop) {
                 
                 [client addClientData:clienOnChannelData forChannel:[PNChannel channelWithName:channelName]];
             }];

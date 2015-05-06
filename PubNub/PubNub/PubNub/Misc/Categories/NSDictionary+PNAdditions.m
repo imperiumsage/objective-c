@@ -49,7 +49,7 @@
     __block BOOL isValidState = YES;
 
 
-    [self enumerateKeysAndObjectsUsingBlock:^(NSString *key, id value, BOOL *keysEnumeratorStop) {
+    [self enumerateKeysAndObjectsUsingBlock:^(__unused NSString *key, id value, BOOL *keysEnumeratorStop) {
 
         if ([value isKindOfClass:[NSDictionary class]]) {
 
@@ -74,10 +74,11 @@
 
 - (NSString *)logDescription {
     
-    NSMutableString *logDescription = [NSMutableString stringWithString:@"<{"];
+    NSMutableString *logDescription = [[NSMutableString alloc] initWithString:@"<{"];
     __block NSUInteger entryIdx = 0;
     
-    [self enumerateKeysAndObjectsUsingBlock:^(NSString *entryKey, id entry, BOOL *entryEnumeratorStop) {
+    [self enumerateKeysAndObjectsUsingBlock:^(NSString *entryKey, id entry,
+                                              __unused BOOL *entryEnumeratorStop) {
         
         // Check whether parameter can be transformed for log or not
         if ([entry respondsToSelector:@selector(logDescription)]) {

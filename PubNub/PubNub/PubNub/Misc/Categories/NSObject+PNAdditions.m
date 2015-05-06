@@ -7,6 +7,7 @@
 //
 
 #import "NSObject+PNAdditions.h"
+#import "PNContextInformation.h"
 #import <objc/runtime.h>
 #import "PNHelper.h"
 
@@ -69,6 +70,15 @@
 
 #pragma mark - Instance methods
 
+static void objectReleaseCallBack(void *info);
+void objectReleaseCallBack(void *info) {
+    
+    if (info) {
+        
+        CFRelease(info);
+    }
+}
+
 - (dispatch_queue_t)pn_privateQueue {
     
     dispatch_queue_t queue = [self pn_privateQueueWrapper].queue;
@@ -89,10 +99,12 @@
     dispatch_set_target_queue(privateQueue, targetQueue);
     const char *cQueueIdentifier = dispatch_queue_get_label(privateQueue);
     
-    // Construct pointer which will be used for code block execution and make sure to run code on provided queue.
-    void *context = (__bridge void *)self;
+    // Construct pointer which will be used for code block execution and make sure to run code
+    // on provided queue.
+    PNContextInformation *information = [PNContextInformation contextWithObject:self];
     const void *privateQueueSpecificPointer = &cQueueIdentifier;
-    dispatch_queue_set_specific(privateQueue, privateQueueSpecificPointer, context, NULL);
+    dispatch_queue_set_specific(privateQueue, privateQueueSpecificPointer,
+                                (__bridge_retained void *)information, objectReleaseCallBack);
     
     // Store queue inside of wrapper as associated object of this instance
     PNDispatchObjectWrapper *wrapper = [PNDispatchObjectWrapper wrapperForObject:privateQueue
@@ -106,8 +118,9 @@
 
 - (void)pn_destroyPrivateDispatchQueue {
     
-    [PNDispatchHelper release:[self pn_privateQueue]];
+    dispatch_queue_t privateQueue = [self pn_privateQueue];
     objc_setAssociatedObject(self, "privateQueue", nil, OBJC_ASSOCIATION_RETAIN);
+    [PNDispatchHelper release:privateQueue];
 }
 
 - (void)pn_dispatchBlock:(dispatch_block_t)block {
@@ -169,7 +182,8 @@
         PNDispatchObjectWrapper *wrapper = [self pn_privateQueueWrapper];
         if (wrapper) {
             
-            runningOnPrivateQueue = [(__bridge id)dispatch_get_specific(wrapper.specificKeyPointer.pointerValue) isEqual:self];
+            void *context = dispatch_get_specific(wrapper.specificKeyPointer.pointerValue);
+            runningOnPrivateQueue = [((__bridge PNContextInformation *)context).object isEqual:self];
         }
     }
     

@@ -1,20 +1,20 @@
 Pod::Spec.new do |s|
   s.name         = 'PubNub'
-  s.version      = '3.7.9.1'
+  s.version      = '3.7.10.8'
   s.summary      = 'The PubNub Real-Time Network. Build real-time apps quickly and scale them globally.'
   s.authors = {
     'PubNub, Inc.' => 'support@pubnub.com'
   }
   s.source = {
     :git => 'https://github.com/pubnub/objective-c.git',
-    :tag => 'v3.7.9.1'
+    :tag => 'v3.7.10.8'
   }
-  
+
   # A list of file patterns which select the source files that should be
   # added to the Pods project. If the pattern is a directory then the
   # path will automatically have '*.{h,m,mm,c,cpp}' appended.
   #  
-  
+
   s.source_files = 'PubNub/PubNub/PubNub/Misc/Categories',
    'PubNub/PubNub/PubNub/Data',
    'PubNub/PubNub/PubNub/Misc',
@@ -28,14 +28,15 @@ Pod::Spec.new do |s|
    'PubNub/PubNub/PubNub/Network/Transport',
    'PubNub/PubNub/PubNub/Data/Channels/Presence',
    'PubNub/PubNub/PubNub/Data/Parsers'
-   
-   s.resources = 'PubNub/PubNub/PubNub/Resources/*'
+
+  s.private_header_files = "PubNub/PubNub/PubNub/Misc/PNPrivateMacro.h"
+  s.resource_bundle = { 'PubNub' => 'PubNub/PubNub/PubNub/Resources/*' }
 
   s.ios.deployment_target = '5.1'
   s.osx.deployment_target = '10.7'
 
   s.ios.prefix_header_file = 'iOS/iPadDemoApp/pubnub/pubnub-Prefix.pch'
-  
+
   s.requires_arc = true
   s.frameworks =  'CFNetwork', 'SystemConfiguration'
   s.library   = 'z'

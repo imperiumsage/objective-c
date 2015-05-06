@@ -19,6 +19,7 @@
 #import "PNChangeAccessRightsRequest.h"
 #import "PNAccessRightsCollection.h"
 #import "PNAccessRightsAuditRequest.h"
+#import "PNStructures.h"
 
 
 #pragma mark - Category private interface declaration
@@ -43,6 +44,8 @@
  @param callbackToken            Reference on callback token under which stored block passed by user
                                  on API usage. This block will be reused because of method
                                  rescheduling.
+ @param numberOfRetriesOnError   How many times re-scheduled request already re-sent because of
+                                 error.
  @param handlerBlock             Handler block which is called by \b PubNub client when push
                                  notification enabling process state changes. Block pass two
                                  arguments: \c rightsCollection - \b PNAccessRightsCollection
@@ -59,6 +62,7 @@
                       clients:(NSArray *)clientsAuthorizationKeys
                      onPeriod:(NSInteger)accessPeriodDuration
      rescheduledCallbackToken:(NSString *)callbackToken
+       numberOfRetriesOnError:(NSUInteger)numberOfRetriesOnError
   withCompletionHandlingBlock:(PNClientChannelAccessRightsChangeBlock)handlerBlock;
 
 /**
@@ -78,6 +82,8 @@
  @param callbackToken            Reference on callback token under which stored block passed by user
                                  on API usage. This block will be reused because of method
                                  rescheduling.
+ @param numberOfRetriesOnError   How many times re-scheduled request already re-sent because of
+                                 error.
  @param handlerBlock             Handler block which is called by \b PubNub client when push
                                  notification enabling process state changes. Block pass two
                                  arguments: \c rightsCollection - \b PNAccessRightsCollection
@@ -95,6 +101,7 @@
                               clients:(NSArray *)clientsAuthorizationKeys
                              onPeriod:(NSInteger)accessPeriodDuration
              rescheduledCallbackToken:(NSString *)callbackToken
+               numberOfRetriesOnError:(NSUInteger)numberOfRetriesOnError
           withCompletionHandlingBlock:(id)handlerBlock;
 
 /**
@@ -108,6 +115,8 @@
  @param callbackToken            Reference on callback token under which stored block passed by user
                                  on API usage. This block will be reused because of method
                                  rescheduling.
+ @param numberOfRetriesOnError   How many times re-scheduled request already re-sent because of
+                                 error.
  @param handlerBlock             Handler block which is called by \b PubNub client when access
                                  rights audition process state changes. Block pass two arguments:
                                  \c rightsCollection - \b PNAccessRightsCollection instance which
@@ -122,6 +131,7 @@
  */
 - (void)auditAccessRightsFor:(NSArray *)channelObjects clients:(NSArray *)clientsAuthorizationKeys
     rescheduledCallbackToken:(NSString *)callbackToken
+      numberOfRetriesOnError:(NSUInteger)numberOfRetriesOnError
  withCompletionHandlingBlock:(PNClientChannelAccessRightsAuditBlock)handlerBlock;
 
 /**
@@ -137,6 +147,8 @@
  @param callbackToken            Reference on callback token under which stored block passed by user
                                  on API usage. This block will be reused because of method
                                  rescheduling.
+ @param numberOfRetriesOnError   How many times re-scheduled request already re-sent because of
+                                 error.
  @param handlerBlock             Handler block which is called by \b PubNub client when access
                                  rights audition process state changes. Block pass two arguments:
                                  \c rightsCollection - \b PNAccessRightsCollection instance which
@@ -152,6 +164,7 @@
 - (void)postponeAuditAccessRightsFor:(NSArray *)channelObjects
                              clients:(NSArray *)clientsAuthorizationKeys
             rescheduledCallbackToken:(NSString *)callbackToken
+              numberOfRetriesOnError:(NSUInteger)numberOfRetriesOnError
          withCompletionHandlingBlock:(id)handlerBlock;
 
 
@@ -533,7 +546,7 @@
     [[self sharedInstance] changeAccessRightsFor:channelObjects accessRights:accessRights
                                          clients:clientsAuthorizationKeys
                                         onPeriod:accessPeriodDuration rescheduledCallbackToken:nil
-                     withCompletionHandlingBlock:handlerBlock];
+                          numberOfRetriesOnError:0 withCompletionHandlingBlock:handlerBlock];
 }
 
 + (void)auditAccessRightsForApplication {
@@ -546,7 +559,7 @@
     [self auditAccessRightsFor:nil withCompletionHandlingBlock:handlerBlock];
 }
 
-+ (void)auditAccessRightsForChannel:(PNChannel *)channel {
++ (void)auditAccessRightsForChannel:(PNChannel *)__unused channel {
     
     [self auditAccessRightsForChannel:nil withCompletionHandlingBlock:nil];
 }
@@ -591,8 +604,8 @@
 + (void) auditAccessRightsFor:(NSArray *)channelObjects
   withCompletionHandlingBlock:(PNClientChannelAccessRightsAuditBlock)handlerBlock {
 
-    [[self sharedInstance] auditAccessRightsFor:channelObjects clients:nil
-                       rescheduledCallbackToken:nil withCompletionHandlingBlock:handlerBlock];
+    [[self sharedInstance] auditAccessRightsFor:channelObjects clients:nil rescheduledCallbackToken:nil
+                         numberOfRetriesOnError:0 withCompletionHandlingBlock:handlerBlock];
 }
 
 + (void)auditAccessRightsForChannel:(PNChannel *)channel clients:(NSArray *)clientsAuthorizationKeys {
@@ -619,7 +632,8 @@
 
     [[self sharedInstance] auditAccessRightsFor:(object ? @[object] : nil)
                                         clients:clientsAuthorizationKeys
-                       rescheduledCallbackToken:nil withCompletionHandlingBlock:handlerBlock];
+                       rescheduledCallbackToken:nil numberOfRetriesOnError:0
+                    withCompletionHandlingBlock:handlerBlock];
 }
 
 
@@ -684,8 +698,8 @@
 - (void)changeApplicationAccessRightsTo:(PNAccessRights)accessRights onPeriod:(NSInteger)accessPeriodDuration
              andCompletionHandlingBlock:(PNClientChannelAccessRightsChangeBlock)handlerBlock {
 
-    [self changeAccessRightsFor:nil accessRights:accessRights clients:nil onPeriod:0
-       rescheduledCallbackToken:nil withCompletionHandlingBlock:handlerBlock];
+    [self changeAccessRightsFor:nil accessRights:accessRights clients:nil onPeriod:accessPeriodDuration
+       rescheduledCallbackToken:nil numberOfRetriesOnError:0 withCompletionHandlingBlock:handlerBlock];
 }
 
 - (void)grantReadAccessRightForChannel:(PNChannel *)channel forPeriod:(NSInteger)accessPeriodDuration {
@@ -925,7 +939,7 @@
 
     [self changeAccessRightsFor:channelObjects accessRights:accessRights clients:nil
                        onPeriod:accessPeriodDuration rescheduledCallbackToken:nil
-    withCompletionHandlingBlock:handlerBlock];
+         numberOfRetriesOnError:0 withCompletionHandlingBlock:handlerBlock];
 }
 
 - (void)changeAccessRightsForClients:(NSArray *)clientsAuthorizationKeys
@@ -943,14 +957,22 @@
 
     [self changeAccessRightsFor:(object ? @[object] : nil) accessRights:accessRights
                         clients:clientsAuthorizationKeys onPeriod:accessPeriodDuration
-       rescheduledCallbackToken:nil withCompletionHandlingBlock:handlerBlock];
+       rescheduledCallbackToken:nil numberOfRetriesOnError:0 withCompletionHandlingBlock:handlerBlock];
 }
 
 - (void)changeAccessRightsFor:(NSArray *)channelObjects accessRights:(PNAccessRights)accessRights
-                      clients:(NSArray *)clientsAuthorizationKeys
-                     onPeriod:(NSInteger)accessPeriodDuration
+                      clients:(NSArray *)clientsAuthorizationKeys onPeriod:(NSInteger)accessPeriodDuration
      rescheduledCallbackToken:(NSString *)callbackToken
+       numberOfRetriesOnError:(NSUInteger)numberOfRetriesOnError
   withCompletionHandlingBlock:(PNClientChannelAccessRightsChangeBlock)handlerBlock {
+
+    // Create additional references on objects passed from outside to ensure what objects will
+    // survive till asynchronous operation will complete.
+    channelObjects = (channelObjects ? [[NSArray alloc] initWithArray:channelObjects copyItems:NO] :
+                                       [NSArray new]);
+    clientsAuthorizationKeys = (clientsAuthorizationKeys ?
+                                [[NSArray alloc] initWithArray:clientsAuthorizationKeys copyItems:NO] :
+                                [NSArray new]);
     
     [self pn_dispatchBlock:^{
         
@@ -964,8 +986,6 @@
         }];
         
         // Initialize arrays in case if used specified \a 'nil' for \a 'channels' and/or \a 'clientsAuthorizationKeys'
-        NSArray *objects = (channelObjects ? channelObjects : @[]);
-        NSArray *authorizationKeys = (clientsAuthorizationKeys ? clientsAuthorizationKeys : @[]);
         
         [self   performAsyncLockingBlock:^{
 
@@ -978,8 +998,8 @@
                     return @[PNLoggerSymbols.api.changeAccessRights, [self humanReadableStateFrom:self.state]];
                 }];
 
-                PNChangeAccessRightsRequest *request = [PNChangeAccessRightsRequest changeAccessRightsRequestForChannels:objects
-                                                                                                            accessRights:accessRights clients:authorizationKeys
+                PNChangeAccessRightsRequest *request = [PNChangeAccessRightsRequest changeAccessRightsRequestForChannels:channelObjects
+                                                                                                            accessRights:accessRights clients:clientsAuthorizationKeys
                                                                                                                forPeriod:accessPeriodDuration];
                 if (handlerBlock && !callbackToken) {
 
@@ -992,6 +1012,7 @@
                                                                    to:request.shortIdentifier];
                 }
 
+                request.retryCount = numberOfRetriesOnError;
                 [self sendRequest:request shouldObserveProcessing:YES];
             }
                 // Looks like client can't send request because of some reasons
@@ -1005,8 +1026,8 @@
 
                 PNAccessRightOptions *options = [PNAccessRightOptions accessRightOptionsForApplication:self.configuration.subscriptionKey
                                                                                             withRights:accessRights
-                                                                                              channels:objects
-                                                                                               clients:authorizationKeys
+                                                                                              channels:channelObjects
+                                                                                               clients:clientsAuthorizationKeys
                                                                                           accessPeriod:accessPeriodDuration];
                 if (![self.configuration.secretKey length]) {
 
@@ -1034,10 +1055,11 @@
                         [self humanReadableStateFrom:self.state]];
             }];
 
-            [self postponeChangeAccessRightsFor:objects accessRights:accessRights
-                                        clients:authorizationKeys
+            [self postponeChangeAccessRightsFor:channelObjects accessRights:accessRights
+                                        clients:clientsAuthorizationKeys
                                        onPeriod:accessPeriodDuration
                        rescheduledCallbackToken:callbackToken
+                         numberOfRetriesOnError:numberOfRetriesOnError
                     withCompletionHandlingBlock:handlerBlock];
         } burstExecutionLockingOperation:NO];
     }];
@@ -1048,16 +1070,17 @@
                               clients:(NSArray *)clientsAuthorizationKeys
                              onPeriod:(NSInteger)accessPeriodDuration
              rescheduledCallbackToken:(NSString *)callbackToken
+               numberOfRetriesOnError:(NSUInteger)numberOfRetriesOnError
           withCompletionHandlingBlock:(id)handlerBlock {
     
-    SEL selector = @selector(changeAccessRightsFor:accessRights:clients:onPeriod:rescheduledCallbackToken:withCompletionHandlingBlock:);
+    SEL selector = @selector(changeAccessRightsFor:accessRights:clients:onPeriod:rescheduledCallbackToken:numberOfRetriesOnError:withCompletionHandlingBlock:);
     id handlerBlockCopy = (handlerBlock ? [handlerBlock copy] : nil);
     [self postponeSelector:selector forObject:self
             withParameters:@[[PNHelper nilifyIfNotSet:channelObjects],
                              [NSNumber numberWithUnsignedLong:accessRights],
                              [PNHelper nilifyIfNotSet:clientsAuthorizationKeys],
                              [NSNumber numberWithInteger:accessPeriodDuration],
-                             [PNHelper nilifyIfNotSet:callbackToken],
+                             [PNHelper nilifyIfNotSet:callbackToken], @(numberOfRetriesOnError),
                              [PNHelper nilifyIfNotSet:handlerBlockCopy]]
                 outOfOrder:(callbackToken != nil) burstExecutionLock:NO];
 }
@@ -1117,7 +1140,7 @@
   withCompletionHandlingBlock:(PNClientChannelAccessRightsAuditBlock)handlerBlock {
 
     [self auditAccessRightsFor:channelObjects clients:nil rescheduledCallbackToken:nil
-   withCompletionHandlingBlock:handlerBlock];
+        numberOfRetriesOnError:0 withCompletionHandlingBlock:handlerBlock];
 }
 
 - (void)auditAccessRightsForChannel:(PNChannel *)channel clients:(NSArray *)clientsAuthorizationKeys {
@@ -1145,12 +1168,21 @@
  withCompletionHandlingBlock:(PNClientChannelAccessRightsAuditBlock)handlerBlock {
 
     [self auditAccessRightsFor:(object ? @[object] : nil) clients:clientsAuthorizationKeys
-      rescheduledCallbackToken:nil withCompletionHandlingBlock:handlerBlock];
+      rescheduledCallbackToken:nil numberOfRetriesOnError:0 withCompletionHandlingBlock:handlerBlock];
 }
 
 - (void)auditAccessRightsFor:(NSArray *)channelObjects clients:(NSArray *)clientsAuthorizationKeys
     rescheduledCallbackToken:(NSString *)callbackToken
+      numberOfRetriesOnError:(NSUInteger)numberOfRetriesOnError
  withCompletionHandlingBlock:(PNClientChannelAccessRightsAuditBlock)handlerBlock {
+
+    // Create additional references on objects passed from outside to ensure what objects will
+    // survive till asynchronous operation will complete.
+    channelObjects = (channelObjects ? [[NSArray alloc] initWithArray:channelObjects copyItems:NO] :
+                                       [NSArray new]);
+    clientsAuthorizationKeys = (clientsAuthorizationKeys ?
+                                [[NSArray alloc] initWithArray:clientsAuthorizationKeys copyItems:NO] :
+                                [NSArray new]);
     
     [self pn_dispatchBlock:^{
         
@@ -1161,10 +1193,6 @@
                      (clientsAuthorizationKeys ? clientsAuthorizationKeys : [NSNull null]),
                      [self humanReadableStateFrom:self.state]];
         }];
-        
-        // Initialize arrays in case if used specified \a 'nil' for \a 'channels' and/or \a 'clientsAuthorizationKeys'
-        NSArray *objects = (channelObjects ? channelObjects : @[]);
-        NSArray *authorizationKeys = (clientsAuthorizationKeys ? clientsAuthorizationKeys : @[]);
         
         [self   performAsyncLockingBlock:^{
 
@@ -1178,8 +1206,8 @@
                             [self humanReadableStateFrom:self.state]];
                 }];
 
-                PNAccessRightsAuditRequest *request = [PNAccessRightsAuditRequest accessRightsAuditRequestForChannels:objects
-                                                                                                           andClients:authorizationKeys];
+                PNAccessRightsAuditRequest *request = [PNAccessRightsAuditRequest accessRightsAuditRequestForChannels:channelObjects
+                                                                                                           andClients:clientsAuthorizationKeys];
                 if (handlerBlock && !callbackToken) {
 
                     [self.observationCenter addClientAsAccessRightsAuditObserverWithToken:request.shortIdentifier
@@ -1191,6 +1219,7 @@
                                                                    to:request.shortIdentifier];
                 }
 
+                request.retryCount = numberOfRetriesOnError;
                 [self sendRequest:request shouldObserveProcessing:YES];
             }
                 // Looks like client can't send request because of some reasons
@@ -1204,8 +1233,8 @@
 
                 PNAccessRightOptions *options = [PNAccessRightOptions accessRightOptionsForApplication:self.configuration.subscriptionKey
                                                                                             withRights:PNUnknownAccessRights
-                                                                                              channels:objects
-                                                                                               clients:authorizationKeys
+                                                                                              channels:channelObjects
+                                                                                               clients:clientsAuthorizationKeys
                                                                                           accessPeriod:0];
                 if (![self.configuration.secretKey length]) {
 
@@ -1233,8 +1262,9 @@
                         [self humanReadableStateFrom:self.state]];
             }];
 
-            [self postponeAuditAccessRightsFor:objects clients:authorizationKeys
+            [self postponeAuditAccessRightsFor:channelObjects clients:clientsAuthorizationKeys
                       rescheduledCallbackToken:callbackToken
+                        numberOfRetriesOnError:numberOfRetriesOnError
                    withCompletionHandlingBlock:handlerBlock];
         } burstExecutionLockingOperation:NO];
     }];
@@ -1243,14 +1273,15 @@
 - (void)postponeAuditAccessRightsFor:(NSArray *)channelObjects
                              clients:(NSArray *)clientsAuthorizationKeys
             rescheduledCallbackToken:(NSString *)callbackToken
+              numberOfRetriesOnError:(NSUInteger)numberOfRetriesOnError
          withCompletionHandlingBlock:(id)handlerBlock {
     
-    SEL selector = @selector(auditAccessRightsFor:clients:rescheduledCallbackToken:withCompletionHandlingBlock:);
+    SEL selector = @selector(auditAccessRightsFor:clients:rescheduledCallbackToken:numberOfRetriesOnError:withCompletionHandlingBlock:);
     id handlerBlockCopy = (handlerBlock ? [handlerBlock copy] : nil);
     [self postponeSelector:selector forObject:self
             withParameters:@[[PNHelper nilifyIfNotSet:channelObjects],
                              [PNHelper nilifyIfNotSet:clientsAuthorizationKeys],
-                             [PNHelper nilifyIfNotSet:callbackToken],
+                             [PNHelper nilifyIfNotSet:callbackToken], @(numberOfRetriesOnError),
                              [PNHelper nilifyIfNotSet:handlerBlockCopy]]
                 outOfOrder:(callbackToken != nil) burstExecutionLock:NO];
 }
@@ -1351,7 +1382,7 @@
     }];
 }
 
-- (void)              serviceChannel:(PNServiceChannel *)channel
+- (void)              serviceChannel:(PNServiceChannel *)__unused channel
   accessRightsChangeDidFailWithError:(PNError *)error forRequest:(PNBaseRequest *)request {
 
     NSString *callbackToken = request.shortIdentifier;
@@ -1364,7 +1395,8 @@
         
         [self rescheduleMethodCall:^{
             
-            PNAccessRightOptions *rightsInformation = (PNAccessRightOptions *)error.associatedObject;
+            PNAccessRightOptions *rightsInformation = (PNAccessRightOptions *)[error.associatedObject valueForKey:@"data"];
+            NSUInteger retryCountOnError = [[error.associatedObject valueForKey:@"errorCounter"] unsignedIntegerValue];
             
             [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
                 
@@ -1376,7 +1408,7 @@
                            accessRights:rightsInformation.rights
                                 clients:rightsInformation.clientsAuthorizationKeys
                                onPeriod:rightsInformation.accessPeriodDuration
-               rescheduledCallbackToken:callbackToken
+               rescheduledCallbackToken:callbackToken numberOfRetriesOnError:retryCountOnError
             withCompletionHandlingBlock:nil];
         }];
     }
@@ -1424,7 +1456,7 @@
     }];
 }
 
-- (void)             serviceChannel:(PNServiceChannel *)channel
+- (void)             serviceChannel:(PNServiceChannel *)__unused channel
   accessRightsAuditDidFailWithError:(PNError *)error forRequest:(PNBaseRequest *)request {
 
     NSString *callbackToken = request.shortIdentifier;
@@ -1437,7 +1469,8 @@
         
         [self rescheduleMethodCall:^{
             
-            PNAccessRightOptions *rightsInformation = (PNAccessRightOptions *)error.associatedObject;
+            PNAccessRightOptions *rightsInformation = (PNAccessRightOptions *)[error.associatedObject valueForKey:@"data"];
+            NSUInteger retryCountOnError = [[error.associatedObject valueForKey:@"errorCounter"] unsignedIntegerValue];
             
             [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
                 
@@ -1447,7 +1480,8 @@
 
             [self auditAccessRightsFor:rightsInformation.channels
                                clients:rightsInformation.clientsAuthorizationKeys
-              rescheduledCallbackToken:callbackToken withCompletionHandlingBlock:nil];
+              rescheduledCallbackToken:callbackToken numberOfRetriesOnError:retryCountOnError
+           withCompletionHandlingBlock:nil];
         }];
     }
 }

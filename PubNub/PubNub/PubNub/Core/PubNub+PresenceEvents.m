@@ -248,6 +248,10 @@
 - (void)enablePresenceObservationFor:(NSArray *)channelObjects
          withCompletionHandlingBlock:(PNClientPresenceEnableHandlingBlock)handlerBlock {
 
+    // Create additional references on objects passed from outside to ensure what objects will
+    // survive till asynchronous operation will complete.
+    channelObjects = [[NSArray alloc] initWithArray:channelObjects copyItems:NO];
+
     [self pn_dispatchBlock:^{
         
         [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
@@ -279,8 +283,8 @@
 
                 // Enumerate over the list of channels and mark that it should observe for presence
                 [channelObjects enumerateObjectsUsingBlock:^(PNChannel *channel,
-                        NSUInteger channelIdx,
-                        BOOL *channelEnumeratorStop) {
+                                                             __unused NSUInteger channelIdx,
+                                                             __unused BOOL *channelEnumeratorStop) {
 
                     channel.observePresence = YES;
                     channel.linkedWithPresenceObservationChannel = NO;
@@ -366,6 +370,10 @@
 
 - (void)disablePresenceObservationFor:(NSArray *)channelObjects
           withCompletionHandlingBlock:(PNClientPresenceDisableHandlingBlock)handlerBlock {
+
+    // Create additional references on objects passed from outside to ensure what objects will
+    // survive till asynchronous operation will complete.
+    channelObjects = [[NSArray alloc] initWithArray:channelObjects copyItems:NO];
 
     [self pn_dispatchBlock:^{
         
@@ -526,8 +534,8 @@
 
 #pragma mark - Message channel delegate methods
 
-- (void)         messagingChannel:(PNMessagingChannel *)messagingChannel
-  willEnablePresenceObservationOn:(NSArray *)channelObjects sequenced:(BOOL)isSequenced {
+- (void)         messagingChannel:(PNMessagingChannel *)__unused messagingChannel
+  willEnablePresenceObservationOn:(NSArray *)channelObjects sequenced:(BOOL)__unused isSequenced {
     
     [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
         
@@ -590,7 +598,7 @@
     }];
 }
 
-- (void)   messagingChannel:(PNMessagingChannel *)messagingChannel
+- (void)   messagingChannel:(PNMessagingChannel *)__unused messagingChannel
   didFailPresenceEnablingOn:(NSArray *)channelObjects withError:(PNError *)error
                   sequenced:(BOOL)isSequenced {
     
@@ -599,8 +607,8 @@
                                   completeLockingOperation:!isSequenced];
 }
 
-- (void)          messagingChannel:(PNMessagingChannel *)messagingChannel
-  willDisablePresenceObservationOn:(NSArray *)channelObjects sequenced:(BOOL)isSequenced {
+- (void)          messagingChannel:(PNMessagingChannel *)__unused messagingChannel
+  willDisablePresenceObservationOn:(NSArray *)channelObjects sequenced:(BOOL)__unused sisSequenced {
     
     [PNLogger logGeneralMessageFrom:self withParametersFromBlock:^NSArray *{
         
@@ -663,7 +671,7 @@
     }];
 }
 
-- (void)    messagingChannel:(PNMessagingChannel *)messagingChannel
+- (void)    messagingChannel:(PNMessagingChannel *)__unused messagingChannel
   didFailPresenceDisablingOn:(NSArray *)channelObjects withError:(PNError *)error
                    sequenced:(BOOL)isSequenced {
     

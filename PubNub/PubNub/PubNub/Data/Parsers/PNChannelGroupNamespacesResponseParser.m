@@ -17,7 +17,7 @@
 
 #pragma mark - Class methods
 
-+ (id)parserForResponse:(PNResponse *)response {
++ (id)parserForResponse:(PNResponse *)__unused response {
     
     NSAssert1(0, @"%s SHOULD BE CALLED ONLY FROM PARENT CLASS", __PRETTY_FUNCTION__);
     
@@ -54,6 +54,11 @@
     
     
     return self;
+}
+
+- (void)setNamespaces:(NSArray *)namespaces {
+    
+    _namespaces = [[NSArray alloc] initWithArray:namespaces copyItems:NO];
 }
 
 - (id)parsedData {

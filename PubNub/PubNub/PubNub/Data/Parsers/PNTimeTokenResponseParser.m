@@ -48,7 +48,7 @@
 
 #pragma mark - Class methods
 
-+ (id)parserForResponse:(PNResponse *)response {
++ (id)parserForResponse:(PNResponse *)__unused response {
 
     NSAssert1(0, @"%s SHOULD BE CALLED ONLY FROM PARENT CLASS", __PRETTY_FUNCTION__);
 
@@ -99,7 +99,7 @@
 
 - (NSString *)description {
 
-    return [NSString stringWithFormat:@"%@ (%p): <time token: %@>",
+    return [[NSString alloc] initWithFormat:@"%@ (%p): <time token: %@>",
                     NSStringFromClass([self class]),
                     self,
                     self.timeToken];

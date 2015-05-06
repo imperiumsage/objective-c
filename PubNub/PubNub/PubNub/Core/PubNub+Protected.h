@@ -98,7 +98,7 @@ typedef enum _PNPubNubClientState {
 /**
  Stores reference on current client identifier.
  */
-@property (nonatomic, strong) NSString *uniqueClientIdentifier;
+@property (nonatomic, copy) NSString *uniqueClientIdentifier;
 
 /**
  Stores reference on client delegate
@@ -134,14 +134,16 @@ typedef enum _PNPubNubClientState {
 - (void)rescheduleMethodCall:(void(^)(void))methodBlock;
 
 /**
- Check whether delegate should be notified about some runtime event (errors will be notified w/o regard to this flag)
+ @brief Check whether delegate should be notified about some runtime event (errors will be 
+        notified w/o regard to this flag)
  
- @param channel
- Reference on connection channel at which callback is fired.
- 
- @return \c YES in case if reporting channel is in correct state and it's callback should be taken into account.
+ @param channel              Reference on connection channel at which callback is fired.
+ @param checkCompletionBlock Check completion block which pass only one parameter - \c YES in 
+                             case if reporting channel is in correct state and it's callback 
+                             should be taken into account.
  */
-- (void)checkShouldChannelNotifyAboutEvent:(PNConnectionChannel *)channel withBlock:(void (^)(BOOL shouldNotify))checkCompletionBlock;
+- (void)checkShouldChannelNotifyAboutEvent:(PNConnectionChannel *)channel
+                                 withBlock:(void (^)(BOOL shouldNotify))checkCompletionBlock;
 
 /**
  Launch heartbeat timer if possible (if client connected and there is channels on which client subscribed at this
@@ -163,6 +165,17 @@ typedef enum _PNPubNubClientState {
  @param forRelaunch Whether timer has been stopped for further re-launch.
  */
 - (void)stopHeartbeatTimer:(BOOL)forRelaunch;
+
+/**
+ @brief      Completely destroy GCD timer.
+ @discussion Mostly this method drops requirement to execute code on private queue and should be 
+             called as last possible action in client life-cycle.
+ 
+ @param shouldClearReference Whether reference on GCD timer should be destroyed or not.
+ 
+ @since 3.7.9.2
+ */
+- (void)destroyHeartbeatTimer:(BOOL)shouldClearReference;
 
 
 #pragma mark - Requests management methods

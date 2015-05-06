@@ -40,7 +40,7 @@
 
 #pragma mark - Class methods
 
-+ (id)parserForResponse:(PNResponse *)response {
++ (id)parserForResponse:(PNResponse *)__unused response {
 
     NSAssert1(0, @"%s SHOULD BE CALLED ONLY FROM PARENT CLASS", __PRETTY_FUNCTION__);
 
@@ -147,7 +147,7 @@
 
 - (NSString *)description {
 
-    return [NSString stringWithFormat:@"%@ (%p): <error: %@>", NSStringFromClass([self class]), self, self.error];
+    return [[NSString alloc] initWithFormat:@"%@ (%p): <error: %@>", NSStringFromClass([self class]), self, self.error];
 }
 
 #pragma mark -
